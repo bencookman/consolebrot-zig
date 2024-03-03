@@ -1,5 +1,5 @@
 const std = @import("std");
-// const stdout = std.io.getStdOut().writer();
+const stdout = std.io.getStdOut().writer();
 const stdin = std.io.getStdIn().reader();
 const ascii = std.ascii;
 const complex = std.math.complex;
@@ -10,7 +10,7 @@ const esc = ascii.control_code.esc;
 const mandelbrot = @import("mandelbrot.zig");
 const io = @import("io.zig");
 
-const print = std.debug.print;
+// const print = std.debug.print;
 
 // print info line
 // print initial mandelbrot
