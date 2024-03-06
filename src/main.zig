@@ -4,13 +4,11 @@ const stdin = std.io.getStdIn().reader();
 const ascii = std.ascii;
 const complex = std.math.complex;
 
-const c128 = complex.Complex(f128);
+const c64 = complex.Complex(f64);
 const esc = ascii.control_code.esc;
 
 const mandelbrot = @import("mandelbrot.zig");
 const io = @import("io.zig");
-
-// const print = std.debug.print;
 
 // print info line
 // print initial mandelbrot
@@ -29,25 +27,25 @@ pub fn main() !void {
         try io.initTermSize();
 
         // Write info
-        const topleft: c128 = io.view_window.getTopLeft();
-        const centre: c128 = io.view_window.centre;
-        const bottomright: c128 = io.view_window.getBottomRight();
-        try stdout.print("Top left = {} + i{}\n", .{ topleft.re, topleft.im });
-        try stdout.print("Centre = {} + i{}\n", .{ centre.re, centre.im });
+        const topleft: c64 = io.view_window.getTopLeft();
+        const centre: c64 = io.view_window.centre;
+        const bottomright: c64 = io.view_window.getBottomRight();
+        try stdout.print("Top left     = {} + i{}\n", .{ topleft.re, topleft.im });
+        try stdout.print("Centre       = {} + i{}\n", .{ centre.re, centre.im });
         try stdout.print("Bottom right = {} + i{}\n", .{ bottomright.re, bottomright.im });
 
         // Show Mandelbrot set
         const r: usize = io.term_sz.height - 5;
         const c: usize = io.term_sz.width;
-        const r_f: f128 = @floatFromInt(r);
-        const c_f: f128 = @floatFromInt(c);
+        const r_f: f64 = @floatFromInt(r);
+        const c_f: f64 = @floatFromInt(c);
         for (0..r) |i| {
             for (0..c) |j| {
-                const i_f: f128 = @floatFromInt(i);
-                const j_f: f128 = @floatFromInt(j);
-                const coord_re: f128 = topleft.re + j_f * (bottomright.re - topleft.re) / (c_f - 1);
-                const coord_im: f128 = topleft.im + i_f * (bottomright.im - topleft.im) / (r_f - 1);
-                const coord: c128 = c128{ .re = coord_re, .im = coord_im };
+                const i_f: f64 = @floatFromInt(i);
+                const j_f: f64 = @floatFromInt(j);
+                const coord_re: f64 = topleft.re + j_f * (bottomright.re - topleft.re) / (c_f - 1);
+                const coord_im: f64 = topleft.im + i_f * (bottomright.im - topleft.im) / (r_f - 1);
+                const coord: c64 = c64{ .re = coord_re, .im = coord_im };
                 try stdout.print("{c}", .{mandelbrot.charFromIterations(mandelbrot.runMandelbrot(coord))});
             }
             try stdout.print("\n", .{});

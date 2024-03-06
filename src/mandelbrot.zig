@@ -1,10 +1,10 @@
 const std = @import("std");
 const complex = std.math.complex;
 
-const c128 = complex.Complex(f128);
+const c64 = complex.Complex(f64);
 
 const MAX_ITERATIONS: u64 = 100;
-const MAX_RADIUS: f128 = 10.0;
+const MAX_RADIUS: f64 = 2.0;
 
 pub fn charFromIterations(n_iterations: u64) u8 {
     if (n_iterations == MAX_ITERATIONS) {
@@ -14,9 +14,9 @@ pub fn charFromIterations(n_iterations: u64) u8 {
     }
 }
 
-pub fn runMandelbrot(c: c128) u64 {
+pub fn runMandelbrot(c: c64) u64 {
     var n_iterations: u64 = 0;
-    var z_n: c128 = c128{ .re = 0, .im = 0 };
+    var z_n: c64 = c64{ .re = 0, .im = 0 };
 
     while (n_iterations < MAX_ITERATIONS) : (n_iterations += 1) {
         z_n = c.add(z_n.mul(z_n)); // z_{n+1} = z_n^2 + c
