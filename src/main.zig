@@ -6,108 +6,154 @@ const complex = std.math.complex;
 
 const c64 = complex.Complex(f64);
 const esc = ascii.control_code.esc;
+const lf = ascii.control_code.lf;
 
 const mandelbrot = @import("mandelbrot.zig");
 const io = @import("io.zig");
 
-// print info line
-// print initial mandelbrot
-// move cursor back to top with extra info
-// wait for user input
-// parse user input:
-// - w - move up
-// - a - move left
-// - s - move down
-// - d - move right
-// - i - zoom in
-// - o - zoom out
-// do it all again
 pub fn main() !void {
+    // Screen refresh loop
     while (true) {
         try io.initTermSize();
 
-        // Write info
-        const topleft: c64 = io.view_window.getTopLeft();
-        const centre: c64 = io.view_window.centre;
-        const bottomright: c64 = io.view_window.getBottomRight();
-        try stdout.print("Top left     = {} + i{}\n", .{ topleft.re, topleft.im });
-        try stdout.print("Centre       = {} + i{}\n", .{ centre.re, centre.im });
-        try stdout.print("Bottom right = {} + i{}\n", .{ bottomright.re, bottomright.im });
-
-        // Show Mandelbrot set
-        const r: usize = io.term_sz.height - 5;
-        const c: usize = io.term_sz.width;
-        const r_f: f64 = @floatFromInt(r);
-        const c_f: f64 = @floatFromInt(c);
-        for (0..r) |i| {
-            for (0..c) |j| {
-                const i_f: f64 = @floatFromInt(i);
-                const j_f: f64 = @floatFromInt(j);
-                const coord_re: f64 = topleft.re + j_f * (bottomright.re - topleft.re) / (c_f - 1);
-                const coord_im: f64 = topleft.im + i_f * (bottomright.im - topleft.im) / (r_f - 1);
-                const coord: c64 = c64{ .re = coord_re, .im = coord_im };
-                try stdout.print("{c}", .{mandelbrot.charFromIterations(mandelbrot.runMandelbrot(coord))});
-            }
-            try stdout.print("\n", .{});
+        switch (io.current_mode) {
+            io.modes.mandelbrot => {
+                try loopMandelbrot();
+            },
+            io.modes.calibrating => {
+                try loopCalibrate();
+            },
         }
+    }
+}
 
-        // Take input
-        try stdout.print("\n{c}[1A{c}[s", .{ esc, esc });
-        while (true) {
-            const inputByte: u8 = try stdin.readByte();
-            switch (inputByte) {
-                io.InputVals.up => {
-                    try stdout.print("\n", .{});
-                    try io.windowMoveUp();
-                    break;
-                },
-                io.InputVals.down => {
-                    try stdout.print("\n", .{});
-                    try io.windowMoveDown();
-                    break;
-                },
-                io.InputVals.left => {
-                    try stdout.print("\n", .{});
-                    try io.windowMoveLeft();
-                    break;
-                },
-                io.InputVals.right => {
-                    try stdout.print("\n", .{});
-                    try io.windowMoveRight();
-                    break;
-                },
-                io.InputVals.in => {
-                    try stdout.print("\n", .{});
-                    try io.windowZoomIn();
-                    break;
-                },
-                io.InputVals.out => {
-                    try stdout.print("\n", .{});
-                    try io.windowZoomOut();
-                    break;
-                },
-                io.InputVals.refresh => {
-                    try stdout.print("\n", .{});
-                    // Change nothing
-                    break;
-                },
-                io.InputVals.help => {
-                    try stdout.print("CONTROLS:\n", .{});
-                    try stdout.print("\tMOVE LEFT  = {c}\n", .{io.InputVals.left});
-                    try stdout.print("\tMOVE RIGHT = {c}\n", .{io.InputVals.right});
-                    try stdout.print("\tMOVE UP    = {c}\n", .{io.InputVals.up});
-                    try stdout.print("\tMOVE DOWN  = {c}\n", .{io.InputVals.down});
-                    try stdout.print("\tZOOM IN    = {c}\n", .{io.InputVals.in});
-                    try stdout.print("\tZOOM OUT   = {c}\n", .{io.InputVals.out});
-                    try stdout.print("\tREFRESH    = {c}\n", .{io.InputVals.refresh});
-                    try stdout.print("\tHELP       = {c}\n", .{io.InputVals.help});
-                    try stdout.print("\n", .{});
-                },
+fn loopMandelbrot() !void {
 
-                else => {
-                    try stdout.print("{c}[u           {c}[u", .{ esc, esc });
-                },
-            }
+    // Show Mandelbrot set
+    const topleft: c64 = io.view_window.getTopLeft();
+    const bottomright: c64 = io.view_window.getBottomRight();
+    const r: usize = io.view_window.window_size.height;
+    const c: usize = io.view_window.window_size.width;
+    const r_f: f64 = @floatFromInt(r);
+    const c_f: f64 = @floatFromInt(c);
+    for (0..r) |i| {
+        for (0..c) |j| {
+            const i_f: f64 = @floatFromInt(i);
+            const j_f: f64 = @floatFromInt(j);
+            const coord_re: f64 = topleft.re + j_f * (bottomright.re - topleft.re) / (c_f - 1);
+            const coord_im: f64 = topleft.im + i_f * (bottomright.im - topleft.im) / (r_f - 1);
+            const coord: c64 = c64{ .re = coord_re, .im = coord_im };
+            try stdout.print("{c}", .{mandelbrot.charFromIterations(mandelbrot.runMandelbrot(coord))});
+        }
+        try stdout.print("\n", .{});
+    }
+
+    // Take input
+    // io.InputVals.help is known at comptime so ++ operator is allowed
+    const input_msg = "Press '" ++ [_]u8{io.InputKeysMandelbrot.help} ++ "' for help. ";
+    try stdout.print("{s}", .{input_msg});
+
+    input: while (true) {
+        const input_byte: u8 = try stdin.readByte();
+        switch (input_byte) {
+            // Breaking means refreshing the screen
+            io.InputKeysMandelbrot.up => {
+                try io.windowMoveUp();
+                break :input;
+            },
+            io.InputKeysMandelbrot.down => {
+                try io.windowMoveDown();
+                break :input;
+            },
+            io.InputKeysMandelbrot.left => {
+                try io.windowMoveLeft();
+                break :input;
+            },
+            io.InputKeysMandelbrot.right => {
+                try io.windowMoveRight();
+                break :input;
+            },
+            io.InputKeysMandelbrot.in => {
+                try io.windowZoomIn();
+                break :input;
+            },
+            io.InputKeysMandelbrot.out => {
+                try io.windowZoomOut();
+                break :input;
+            },
+            io.InputKeysMandelbrot.refresh => {
+                break :input;
+            },
+            io.InputKeysMandelbrot.where => {
+                try io.view_window.printDiagonalCoords();
+            },
+            io.InputKeysMandelbrot.help => {
+                try io.printHelpMandelbrot();
+            },
+            io.InputKeysMandelbrot.calibrate => {
+                io.current_mode = io.modes.calibrating;
+                break :input;
+            },
+            lf => {},
+            else => {},
+        }
+    }
+}
+
+fn loopCalibrate() !void {
+    try stdout.print("Calibrate axes by making the shape below a circle:\n", .{});
+
+    const topleft: c64 = io.view_window.getTopLeft();
+    const centre: c64 = io.view_window.centre;
+    const bottomright: c64 = io.view_window.getBottomRight();
+    const r: usize = io.view_window.window_size.height;
+    const c: usize = io.view_window.window_size.width;
+    const r_f: f64 = @floatFromInt(r);
+    const c_f: f64 = @floatFromInt(c);
+    for (0..r) |i| {
+        for (0..c) |j| {
+            const i_f: f64 = @floatFromInt(i);
+            const j_f: f64 = @floatFromInt(j);
+            const coord_re: f64 = topleft.re + j_f * (bottomright.re - topleft.re) / (c_f - 1);
+            const coord_im: f64 = topleft.im + i_f * (bottomright.im - topleft.im) / (r_f - 1);
+            const coord: c64 = c64{ .re = coord_re, .im = coord_im };
+            const dist_to_centre: f64 = coord.sub(centre).magnitude();
+            const coord_char: u8 = if (dist_to_centre < io.view_window.size * io.term_ratio) "0"[0] else " "[0];
+            try stdout.print("{c}", .{coord_char});
+        }
+        try stdout.print("\n", .{});
+    }
+
+    const input_msg = "Press '" ++ [_]u8{io.InputKeysCalibrate.help} ++ "' for help. ";
+    try stdout.print("{s}", .{input_msg});
+
+    input: while (true) {
+        const input_byte: u8 = try stdin.readByte();
+        switch (input_byte) {
+            io.InputKeysCalibrate.increase => {
+                io.term_font_ratio += 0.05;
+                break :input;
+            },
+            io.InputKeysCalibrate.decrease => {
+                io.term_font_ratio -= 0.05;
+                break :input;
+            },
+            io.InputKeysCalibrate.refresh => {
+                break :input;
+            },
+            io.InputKeysCalibrate.where => {
+                try stdout.print("Current scaling:\n", .{});
+                try stdout.print("\tFont height is {d:.2} time taller than font width.\n", .{io.term_font_ratio});
+            },
+            io.InputKeysCalibrate.help => {
+                try io.printHelpCalibrate();
+            },
+            io.InputKeysCalibrate.mandelbrot => {
+                io.current_mode = io.modes.mandelbrot;
+                break :input;
+            },
+            lf => {},
+            else => {},
         }
     }
 }

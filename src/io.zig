@@ -10,32 +10,43 @@ const c = @cImport({
 
 const c64 = complex.Complex(f64);
 
-const TermSz = struct { height: usize, width: usize };
-pub var term_sz: TermSz = .{ .height = 0, .width = 0 }; // set via initTermSz
+const TermSize = struct { height: usize, width: usize };
+pub var term_size: TermSize = .{ .height = 0, .width = 0 };
 pub var term_ratio: f64 = 1.0;
-const TERM_FONT_RATIO: f64 = 1.75; // Could be changed by user input
+pub var term_font_ratio: f64 = 1.75; // Could be changed by user input
 
 const TIOCGWINSZ = c.TIOCGWINSZ; // ioctl flag
 
-pub fn getTermSz(tty: std.os.fd_t) !TermSz {
+pub fn getTermSize(tty: std.os.fd_t) !TermSize {
     var winsz = c.winsize{ .ws_col = 0, .ws_row = 0, .ws_xpixel = 0, .ws_ypixel = 0 };
     const rv = std.os.system.ioctl(tty, TIOCGWINSZ, @intFromPtr(&winsz));
     const err = std.os.errno(rv);
     if (rv == 0) {
-        return TermSz{ .height = winsz.ws_row, .width = winsz.ws_col };
+        return TermSize{ .height = winsz.ws_row, .width = winsz.ws_col };
     } else {
         return std.os.unexpectedErrno(err);
     }
 }
 
+const TermTooSmall = error{
+    terminal_too_small,
+};
+
 pub fn initTermSize() !void {
-    term_sz = try getTermSz(stdout.context.handle);
-    const height_f: f64 = @floatFromInt(term_sz.height);
-    const width_f: f64 = @floatFromInt(term_sz.width);
-    term_ratio = TERM_FONT_RATIO * height_f / width_f;
+    term_size = try getTermSize(stdout.context.handle);
+    if (term_size.height < 2) return TermTooSmall.terminal_too_small;
+    view_window.window_size = TermSize{ .height = term_size.height - 1, .width = term_size.width };
+    const height_f: f64 = @floatFromInt(view_window.window_size.height); // Adjust for height of viewport in terminal
+    const width_f: f64 = @floatFromInt(view_window.window_size.width);
+    term_ratio = term_font_ratio * height_f / width_f;
 }
 
+pub const modes = enum { mandelbrot, calibrating };
+
+pub var current_mode: modes = modes.mandelbrot;
+
 const Window = struct {
+    window_size: TermSize,
     centre: c64,
     size: f64,
 
@@ -51,20 +62,46 @@ const Window = struct {
     pub fn getBottomRight(self: Window) c64 {
         return .{ .re = self.centre.re + self.size, .im = self.centre.im - self.size * term_ratio };
     }
+
+    pub fn printDiagonalCoords(self: Window) !void {
+        const topleft: c64 = self.getTopLeft();
+        const centre: c64 = self.centre;
+        const bottomright: c64 = self.getBottomRight();
+        try stdout.print("Top left     = {} + i{}\n", .{ topleft.re, topleft.im });
+        try stdout.print("Centre       = {} + i{}\n", .{ centre.re, centre.im });
+        try stdout.print("Bottom right = {} + i{}\n", .{ bottomright.re, bottomright.im });
+    }
 };
 
-pub var view_window: Window = Window{ .centre = c64{ .re = -0.5, .im = 0.0 }, .size = 1.0 };
+pub var view_window: Window = Window{ .window_size = TermSize{ .height = 0, .width = 0 }, .centre = c64{ .re = -0.5, .im = 0.0 }, .size = 2.0 };
 
-pub const InputVals = struct {
+pub const InputKeysMandelbrot = struct {
     pub const up: u8 = "w"[0];
     pub const left: u8 = "a"[0];
     pub const down: u8 = "s"[0];
     pub const right: u8 = "d"[0];
     pub const in: u8 = "q"[0];
     pub const out: u8 = "e"[0];
-    pub const help: u8 = "h"[0];
     pub const refresh: u8 = "r"[0];
+    pub const where: u8 = "f"[0];
+    pub const help: u8 = "h"[0];
+    pub const calibrate: u8 = "c"[0];
+    // Add key to show position
 };
+
+pub fn printHelpMandelbrot() !void {
+    try stdout.print("CONTROLS:\n", .{});
+    try stdout.print("\tMOVE LEFT   = {c}\n", .{InputKeysMandelbrot.left});
+    try stdout.print("\tMOVE RIGHT  = {c}\n", .{InputKeysMandelbrot.right});
+    try stdout.print("\tMOVE UP     = {c}\n", .{InputKeysMandelbrot.up});
+    try stdout.print("\tMOVE DOWN   = {c}\n", .{InputKeysMandelbrot.down});
+    try stdout.print("\tZOOM IN     = {c}\n", .{InputKeysMandelbrot.in});
+    try stdout.print("\tZOOM OUT    = {c}\n", .{InputKeysMandelbrot.out});
+    try stdout.print("\tREFRESH     = {c}\n", .{InputKeysMandelbrot.refresh});
+    try stdout.print("\tWHERE AM I? = {c}\n", .{InputKeysMandelbrot.where});
+    try stdout.print("\tHELP        = {c}\n", .{InputKeysMandelbrot.help});
+    try stdout.print("\tCALIBRATE Y AXIS FONT SCALING = {c}\n", .{InputKeysMandelbrot.calibrate});
+}
 
 pub const move_rate: f64 = 0.4;
 pub const zoom_rate: f64 = 1.5;
@@ -86,4 +123,23 @@ pub fn windowZoomIn() !void {
 }
 pub fn windowZoomOut() !void {
     view_window.size *= zoom_rate;
+}
+
+pub const InputKeysCalibrate = struct {
+    pub const increase: u8 = "q"[0];
+    pub const decrease: u8 = "e"[0];
+    pub const refresh: u8 = "r"[0];
+    pub const where: u8 = "f"[0];
+    pub const help: u8 = "h"[0];
+    pub const mandelbrot: u8 = "m"[0];
+};
+
+pub fn printHelpCalibrate() !void {
+    try stdout.print("CONTROLS:\n", .{});
+    try stdout.print("\tINCREASE FONT Y SCALING = {c}\n", .{InputKeysCalibrate.increase});
+    try stdout.print("\tDECREASE FONT Y SCALING = {c}\n", .{InputKeysCalibrate.decrease});
+    try stdout.print("\tREFRESH                 = {c}\n", .{InputKeysCalibrate.refresh});
+    try stdout.print("\tPRINT CURRENT SCALING   = {c}\n", .{InputKeysCalibrate.where});
+    try stdout.print("\tHELP                    = {c}\n", .{InputKeysCalibrate.help});
+    try stdout.print("\tBACK TO MANDELBROT      = {c}\n", .{InputKeysCalibrate.mandelbrot});
 }
