@@ -44,6 +44,8 @@ zig build                                               # Build the project
     - Compilation to all popular operating systems (Windows, Mac, Linux)
 - Ease of use
     - Simple, self-explanatory UI
+    - list of inputs for reproducability
+    - centre finder
 - High accuracy
     - Infinite zooming into the Mandelbrot set, forever
     - Minimal cost of zooming

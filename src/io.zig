@@ -8,12 +8,12 @@ const c = @cImport({
     @cInclude("sys/ioctl.h");
 });
 
-const c64 = complex.Complex(f64);
+const c128 = complex.Complex(f128);
 
 const TermSize = struct { height: usize, width: usize };
 pub var term_size: TermSize = .{ .height = 0, .width = 0 };
-pub var term_ratio: f64 = 1.0;
-pub var term_font_ratio: f64 = 1.75; // Could be changed by user input
+pub var term_ratio: f128 = 1.0;
+pub var term_font_ratio: f128 = 1.75; // Could be changed by user input
 
 const TIOCGWINSZ = c.TIOCGWINSZ; // ioctl flag
 
@@ -36,8 +36,8 @@ pub fn initTermSize() !void {
     term_size = try getTermSize(stdout.context.handle);
     if (term_size.height < 2) return TermTooSmall.terminal_too_small;
     view_window.window_size = TermSize{ .height = term_size.height - 1, .width = term_size.width };
-    const height_f: f64 = @floatFromInt(view_window.window_size.height); // Adjust for height of viewport in terminal
-    const width_f: f64 = @floatFromInt(view_window.window_size.width);
+    const height_f: f128 = @floatFromInt(view_window.window_size.height); // Adjust for height of viewport in terminal
+    const width_f: f128 = @floatFromInt(view_window.window_size.width);
     term_ratio = term_font_ratio * height_f / width_f;
 }
 
@@ -45,35 +45,36 @@ pub const modes = enum { mandelbrot, calibrating };
 
 pub var current_mode: modes = modes.mandelbrot;
 
-const Window = struct {
+pub const Window = struct {
     window_size: TermSize,
-    centre: c64,
-    size: f64,
+    centre: c128,
+    size: f128,
 
-    pub fn getTopLeft(self: Window) c64 {
+    pub fn getTopLeft(self: Window) c128 {
         return .{ .re = self.centre.re - self.size, .im = self.centre.im + self.size * term_ratio };
     }
-    pub fn getTopRight(self: Window) c64 {
+    pub fn getTopRight(self: Window) c128 {
         return .{ .re = self.centre.re + self.size, .im = self.centre.im + self.size * term_ratio };
     }
-    pub fn getBottomLeft(self: Window) c64 {
+    pub fn getBottomLeft(self: Window) c128 {
         return .{ .re = self.centre.re - self.size, .im = self.centre.im - self.size * term_ratio };
     }
-    pub fn getBottomRight(self: Window) c64 {
+    pub fn getBottomRight(self: Window) c128 {
         return .{ .re = self.centre.re + self.size, .im = self.centre.im - self.size * term_ratio };
     }
 
     pub fn printDiagonalCoords(self: Window) !void {
-        const topleft: c64 = self.getTopLeft();
-        const centre: c64 = self.centre;
-        const bottomright: c64 = self.getBottomRight();
+        const topleft: c128 = self.getTopLeft();
+        const centre: c128 = self.centre;
+        const bottomright: c128 = self.getBottomRight();
         try stdout.print("Top left     = {} + i{}\n", .{ topleft.re, topleft.im });
         try stdout.print("Centre       = {} + i{}\n", .{ centre.re, centre.im });
         try stdout.print("Bottom right = {} + i{}\n", .{ bottomright.re, bottomright.im });
+        try stdout.print("size = {}\n", .{self.size});
     }
 };
 
-pub var view_window: Window = Window{ .window_size = TermSize{ .height = 0, .width = 0 }, .centre = c64{ .re = -0.5, .im = 0.0 }, .size = 2.0 };
+pub var view_window: Window = Window{ .window_size = TermSize{ .height = 0, .width = 0 }, .centre = c128{ .re = -0.5, .im = 0.0 }, .size = 2.0 };
 
 pub const InputKeysMandelbrot = struct {
     pub const up: u8 = "w"[0];
@@ -103,20 +104,20 @@ pub fn printHelpMandelbrot() !void {
     try stdout.print("\tCALIBRATE Y AXIS FONT SCALING = {c}\n", .{InputKeysMandelbrot.calibrate});
 }
 
-pub const move_rate: f64 = 0.4;
-pub const zoom_rate: f64 = 1.5;
+pub const move_rate: f128 = 0.4;
+pub const zoom_rate: f128 = 1.5;
 
 pub fn windowMoveLeft() !void {
-    view_window.centre = view_window.centre.sub(c64{ .re = move_rate * view_window.size, .im = 0 });
+    view_window.centre = view_window.centre.sub(c128{ .re = move_rate * view_window.size, .im = 0 });
 }
 pub fn windowMoveRight() !void {
-    view_window.centre = view_window.centre.add(c64{ .re = move_rate * view_window.size, .im = 0 });
+    view_window.centre = view_window.centre.add(c128{ .re = move_rate * view_window.size, .im = 0 });
 }
 pub fn windowMoveUp() !void {
-    view_window.centre = view_window.centre.add(c64{ .re = 0, .im = move_rate * view_window.size });
+    view_window.centre = view_window.centre.add(c128{ .re = 0, .im = move_rate * view_window.size });
 }
 pub fn windowMoveDown() !void {
-    view_window.centre = view_window.centre.sub(c64{ .re = 0, .im = move_rate * view_window.size });
+    view_window.centre = view_window.centre.sub(c128{ .re = 0, .im = move_rate * view_window.size });
 }
 pub fn windowZoomIn() !void {
     view_window.size /= zoom_rate;

@@ -4,7 +4,7 @@ const stdin = std.io.getStdIn().reader();
 const ascii = std.ascii;
 const complex = std.math.complex;
 
-const c64 = complex.Complex(f64);
+const c128 = complex.Complex(f128);
 const esc = ascii.control_code.esc;
 const lf = ascii.control_code.lf;
 
@@ -30,20 +30,21 @@ pub fn main() !void {
 fn loopMandelbrot() !void {
 
     // Show Mandelbrot set
-    const topleft: c64 = io.view_window.getTopLeft();
-    const bottomright: c64 = io.view_window.getBottomRight();
+    const topleft: c128 = io.view_window.getTopLeft();
+    const bottomright: c128 = io.view_window.getBottomRight();
     const r: usize = io.view_window.window_size.height;
     const c: usize = io.view_window.window_size.width;
-    const r_f: f64 = @floatFromInt(r);
-    const c_f: f64 = @floatFromInt(c);
+    const r_f: f128 = @floatFromInt(r);
+    const c_f: f128 = @floatFromInt(c);
     for (0..r) |i| {
         for (0..c) |j| {
-            const i_f: f64 = @floatFromInt(i);
-            const j_f: f64 = @floatFromInt(j);
-            const coord_re: f64 = topleft.re + j_f * (bottomright.re - topleft.re) / (c_f - 1);
-            const coord_im: f64 = topleft.im + i_f * (bottomright.im - topleft.im) / (r_f - 1);
-            const coord: c64 = c64{ .re = coord_re, .im = coord_im };
-            try stdout.print("{c}", .{mandelbrot.charFromIterations(mandelbrot.runMandelbrot(coord))});
+            const i_f: f128 = @floatFromInt(i);
+            const j_f: f128 = @floatFromInt(j);
+            const coord_re: f128 = topleft.re + j_f * (bottomright.re - topleft.re) / (c_f - 1);
+            const coord_im: f128 = topleft.im + i_f * (bottomright.im - topleft.im) / (r_f - 1);
+            const coord: c128 = c128{ .re = coord_re, .im = coord_im };
+            const coord_out: u8 = mandelbrot.charFromMandelbrotIters(mandelbrot.runMandelbrot(coord, io.view_window));
+            try stdout.print("{c}", .{coord_out});
         }
         try stdout.print("\n", .{});
     }
@@ -101,30 +102,28 @@ fn loopMandelbrot() !void {
 }
 
 fn loopCalibrate() !void {
-    try stdout.print("Calibrate axes by making the shape below a circle:\n", .{});
-
-    const topleft: c64 = io.view_window.getTopLeft();
-    const centre: c64 = io.view_window.centre;
-    const bottomright: c64 = io.view_window.getBottomRight();
+    const topleft: c128 = io.view_window.getTopLeft();
+    const centre: c128 = io.view_window.centre;
+    const bottomright: c128 = io.view_window.getBottomRight();
     const r: usize = io.view_window.window_size.height;
     const c: usize = io.view_window.window_size.width;
-    const r_f: f64 = @floatFromInt(r);
-    const c_f: f64 = @floatFromInt(c);
+    const r_f: f128 = @floatFromInt(r);
+    const c_f: f128 = @floatFromInt(c);
     for (0..r) |i| {
         for (0..c) |j| {
-            const i_f: f64 = @floatFromInt(i);
-            const j_f: f64 = @floatFromInt(j);
-            const coord_re: f64 = topleft.re + j_f * (bottomright.re - topleft.re) / (c_f - 1);
-            const coord_im: f64 = topleft.im + i_f * (bottomright.im - topleft.im) / (r_f - 1);
-            const coord: c64 = c64{ .re = coord_re, .im = coord_im };
-            const dist_to_centre: f64 = coord.sub(centre).magnitude();
+            const i_f: f128 = @floatFromInt(i);
+            const j_f: f128 = @floatFromInt(j);
+            const coord_re: f128 = topleft.re + j_f * (bottomright.re - topleft.re) / (c_f - 1);
+            const coord_im: f128 = topleft.im + i_f * (bottomright.im - topleft.im) / (r_f - 1);
+            const coord: c128 = c128{ .re = coord_re, .im = coord_im };
+            const dist_to_centre: f128 = coord.sub(centre).magnitude();
             const coord_char: u8 = if (dist_to_centre < io.view_window.size * io.term_ratio) "0"[0] else " "[0];
             try stdout.print("{c}", .{coord_char});
         }
         try stdout.print("\n", .{});
     }
 
-    const input_msg = "Press '" ++ [_]u8{io.InputKeysCalibrate.help} ++ "' for help. ";
+    const input_msg = "Calibrate axes by making the shape above a circle. Press '" ++ [_]u8{io.InputKeysCalibrate.help} ++ "' for help. ";
     try stdout.print("{s}", .{input_msg});
 
     input: while (true) {
@@ -143,7 +142,8 @@ fn loopCalibrate() !void {
             },
             io.InputKeysCalibrate.where => {
                 try stdout.print("Current scaling:\n", .{});
-                try stdout.print("\tFont height is {d:.2} time taller than font width.\n", .{io.term_font_ratio});
+                // f128 do not support decimal printing
+                try stdout.print("\tFont height is {} time taller than font width.\n", .{io.term_font_ratio});
             },
             io.InputKeysCalibrate.help => {
                 try io.printHelpCalibrate();
